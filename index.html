@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>스크랩함</title>
+<style>
+:root {
+  --bg: #f6f5f1; --card: #ffffff; --text: #1f2421; --muted: #6b716d; --line: #e3e1da;
+  --accent: #2f5d50; --on-accent: #ffffff; --accent-soft: #e3ede9; --unread: #d9822b; --danger: #b4443a;
+  --banner: #fdf1e4;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161917; --card: #1f2321; --text: #e8ebe9; --muted: #9aa29d; --line: #2f3532;
+    --accent: #7fb8a4; --on-accent: #10201b; --accent-soft: #23332d; --unread: #f0a35b; --danger: #e0786d;
+    --banner: #33291f;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 "Malgun Gothic", "Apple SD Gothic Neo", -apple-system, "Segoe UI", sans-serif;
+}
+h1 { margin: 0; font-size: 21px; letter-spacing: -0.02em; }
+h2 { margin: 0; font-size: 18px; }
+input, select, button { font: inherit; color: inherit; }
+textarea#addUrl {
+  flex: 1; min-width: 0; min-height: 42px; max-height: 40vh; padding: 9px 12px; resize: none;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card); line-height: 1.5;
+  font: inherit; color: inherit; overflow-y: auto;
+}
+textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.row:has(#addUrl) { align-items: flex-start; }
+input[type=text], input[type=search], input[type=time], select {
+  width: 100%; min-height: 42px; padding: 8px 12px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--card);
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+button {
+  min-height: 42px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card); cursor: pointer; white-space: nowrap;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+button.ghost { background: transparent; }
+button.small { min-height: 32px; padding: 0 10px; font-size: 13px; }
+.muted { color: var(--muted); }
+.note-s { font-size: 13px; color: var(--muted); margin: 0; }
+
+#app { max-width: 760px; margin: 0 auto; padding: 16px 16px 48px; display: grid; gap: 10px; }
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bar div { display: flex; gap: 6px; }
+
+.banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 14px; background: var(--banner); border-radius: 12px; font-size: 14px;
+}
+.banner b { color: var(--unread); }
+
+.add { display: grid; gap: 8px; padding: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; }
+.add.drag { outline: 2px dashed var(--accent); }
+.row { display: flex; gap: 8px; }
+.row select { flex: 1; }
+.pick {
+  display: inline-flex; align-items: center; padding: 0 14px; min-height: 42px;
+  border: 1px solid var(--line); border-radius: 10px; cursor: pointer; white-space: nowrap;
+}
+.pending { display: flex; gap: 10px; align-items: flex-end; }
+.pending img { width: 96px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); }
+
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
+.tab { min-height: 36px; padding: 0 12px; border-radius: 999px; font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.tab.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.tab .n { font-size: 12px; min-width: 18px; padding: 0 5px; border-radius: 999px; background: var(--unread); color: #fff; text-align: center; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+#list { display: grid; gap: 8px; }
+.day { margin: 12px 2px 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.card {
+  display: flex; gap: 12px; padding: 12px; background: var(--card);
+  border: 1px solid var(--line); border-radius: 14px; position: relative;
+}
+.card.unread::before {
+  content: ""; position: absolute; left: -1px; top: 14px; bottom: 14px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--unread);
+}
+.card { flex-wrap: wrap; }
+.card.read { opacity: 0.68; }
+.card.read:has(.embed) { opacity: 1; }
+.thumb.th { background: #101010; color: #fff; font-size: 30px; font-weight: 400; }
+.embed { flex-basis: 100%; display: grid; justify-items: center; }
+.embed iframe { width: 100%; max-width: 540px; height: 520px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.embed p { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.thumb {
+  flex: none; width: 72px; height: 72px; border-radius: 8px; overflow: hidden; padding: 0; border: 0;
+  background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 22px; text-decoration: none; min-height: 0;
+}
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.body { min-width: 0; flex: 1; display: grid; gap: 3px; align-content: start; }
+.title {
+  color: var(--text); text-decoration: none; font-weight: 600; line-height: 1.35; text-align: left;
+  background: none; border: 0; padding: 0; min-height: 0; cursor: pointer; white-space: normal;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all;
+}
+.title:hover { text-decoration: underline; }
+.memo { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.text {
+  font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.text.open { display: block; -webkit-line-clamp: unset; padding: 8px 10px; margin-top: 2px; background: var(--bg); border-radius: 8px; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 12px; color: var(--muted); margin-top: 2px; }
+.meta select {
+  width: auto; min-height: 28px; padding: 2px 8px; font-size: 12px; border-radius: 999px;
+  background: var(--accent-soft); border-color: transparent;
+}
+.meta button { min-height: 28px; padding: 0 8px; font-size: 12px; border-radius: 8px; background: transparent; }
+.meta .del { color: var(--danger); }
+.empty { text-align: center; color: var(--muted); padding: 48px 0; }
+
+dialog {
+  border: 1px solid var(--line); border-radius: 16px; background: var(--card); color: var(--text);
+  padding: 0; width: min(440px, calc(100vw - 32px));
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.4); }
+.dlg { display: grid; gap: 12px; padding: 20px; }
+.days { display: flex; gap: 4px; }
+.days label {
+  flex: 1 1 0; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 14px;
+}
+.days input { display: none; }
+.days label:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.field { display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+.end { display: flex; gap: 8px; justify-content: flex-end; }
+#helpDlg { width: min(560px, calc(100vw - 32px)); max-height: 86vh; }
+.help { gap: 6px; }
+.help h3 { margin: 10px 0 0; font-size: 15px; color: var(--accent); }
+.help ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.help code, .hint code { font-size: 0.9em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+kbd { font-family: inherit; font-size: 12px; line-height: 1; padding: 2px 5px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; }
+.hint { margin: 0; padding: 8px 12px; font-size: 13px; background: var(--accent-soft); border-radius: 8px; }
+.viewer { width: auto; max-width: 96vw; background: transparent; border: 0; }
+.viewer img { max-width: 94vw; max-height: 90vh; display: block; border-radius: 8px; }
+
+.toast {
+  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 10;
+  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s; max-width: calc(100vw - 32px);
+}
+.toast.show { opacity: 1; }
+@media (max-width: 480px) { .thumb { width: 60px; height: 60px; } .bar button { padding: 0 10px; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <h1>스크랩함</h1>
+    <div>
+      <button id="notifyBtn" class="ghost" type="button">알림 설정</button>
+      <button id="backupBtn" class="ghost" type="button">백업</button>
+      <button id="helpBtn" class="ghost" type="button">도움말</button>
+    </div>
+  </header>
+
+  <div id="storageError" class="banner" hidden>
+    이 브라우저에서는 저장 공간을 쓸 수 없어요. Chrome이나 Edge로 이 파일을 열어 주세요.
+  </div>
+
+  <div id="banner" class="banner" hidden>
+    <span id="bannerText"></span>
+    <button id="bannerShow" class="small" type="button">보기</button>
+  </div>
+
+  <form id="addForm" class="add">
+    <div class="row">
+      <textarea id="addUrl" rows="1" placeholder="링크나 글 붙여 넣기 · 캡처는 Ctrl+V · 저장은 Ctrl+Enter" autocomplete="off"></textarea>
+      <label class="pick">캡처<input id="fileInput" type="file" accept="image/*" hidden></label>
+    </div>
+    <div id="pending" class="pending" hidden>
+      <img id="pendingImg" alt="붙여 넣은 캡처 미리보기">
+      <button id="cancelImage" class="ghost small" type="button">캡처 취소</button>
+    </div>
+    <input id="addNote" type="text" placeholder="제목이나 한 줄 메모 (선택 · 분류에 쓰여요)" autocomplete="off">
+    <p id="threadsHint" class="hint" hidden>Threads 글은 내용을 자동으로 가져올 수 없어요. 글 내용을 링크와 같이 붙여 넣거나 메모에 한 줄 적어 두면 주제가 정확하게 붙어요. 저장한 뒤에는 카드의 <b>글 보기</b>로 글을 바로 볼 수 있어요.</p>
+    <div class="row">
+      <select id="addTopic" aria-label="주제"></select>
+      <button class="primary" type="submit">저장</button>
+    </div>
+  </form>
+
+  <input id="search" type="search" placeholder="검색 (제목, 메모, 주소)">
+  <nav id="tabs" class="tabs"></nav>
+  <label class="toggle"><input type="checkbox" id="unreadOnly"> 안 본 것만</label>
+
+  <main id="list"></main>
+</div>
+
+<dialog id="notifyDlg">
+  <form method="dialog" class="dlg">
+    <h2>알림 설정</h2>
+    <p class="note-s">정해 둔 시각에 이 페이지가 열려 있으면 "안 본 스크랩 N개"를 알려 드려요. 닫혀 있었다면 다음에 열 때 위쪽 안내로 보여 드려요.</p>
+    <label class="toggle"><input type="checkbox" id="notifyOn"> 정해진 시각에 알려 주기</label>
+    <label class="field">시각 <input type="time" id="notifyTime"></label>
+    <div class="days" id="notifyDays"></div>
+    <p class="note-s" id="permText"></p>
+    <div class="end">
+      <button id="permBtn" type="button" class="ghost">PC 알림 허용</button>
+      <button id="testBtn" type="button" class="ghost">테스트</button>
+      <button id="saveNotify" type="button" class="primary">저장</button>
+    </div>
+    <button value="close" class="ghost">닫기</button>
+  </form>
+</dialog>
+
+<dialog id="backupDlg">
+  <form method="dialog" class="dlg">
+    <h2>백업</h2>
+    <p class="note-s">스크랩은 이 PC의 이 브라우저 안에만 저장돼요. 브라우저 기록을 지우면 함께 사라지니 가끔 내보내 두세요. 캡처 이미지도 함께 담깁니다.</p>
+    <div class="end">
+      <label class="pick">불러오기<input id="importInput" type="file" accept=".json,application/json" hidden></label>
+      <button id="exportBtn" type="button" class="primary">내보내기</button>
+    </div>
+    <p class="note-s" id="backupInfo"></p>
+    <button value="close" class="ghost">닫기</button>
+  </form>
+</dialog>
+
+<dialog id="helpDlg">
+  <form method="dialog" class="dlg help">
+    <h2 tabindex="-1" autofocus style="outline:none">도움말</h2>
+
+    <h3>저장하기</h3>
+    <ul>
+      <li><b>링크</b>: 위 칸에 붙여 넣고 <b>저장</b>을 누릅니다. 이 파일은 페이지 제목을 직접 가져올 수 없어서, 메모 칸에 제목이나 한 줄 메모를 쓰면 분류가 더 정확해져요.</li>
+      <li><b>캡처</b>: <kbd>Win</kbd>+<kbd>Shift</kbd>+<kbd>S</kbd>로 캡처한 뒤 이 페이지에서 <kbd>Ctrl</kbd>+<kbd>V</kbd>를 누르고, 메모를 쓴 다음 저장합니다. 이미지 파일을 끌어다 놓아도 돼요.</li>
+      <li><b>글</b>: 링크 없이 글만 붙여 넣어도 돼요. 길이와 상관없이 전부 저장되고, 첫 줄이 제목이 돼요(메모 칸에 쓰면 그게 제목). 카드에는 3줄만 보이고 <b>전체 보기</b>로 펼치거나 <b>복사</b>로 다시 가져다 쓸 수 있어요. 분류와 검색은 글 전체로 해요.</li>
+      <li><b>글 + 링크</b>를 함께 붙여 넣으면 링크 카드에 글 전문이 같이 붙어요.</li>
+      <li>입력칸에서 <kbd>Enter</kbd>는 줄바꿈, <kbd>Ctrl</kbd>+<kbd>Enter</kbd>는 저장이에요. 여러 줄을 붙이면 칸이 저절로 늘어나요.</li>
+      <li>같은 링크를 다시 넣으면 새로 쌓지 않고 맨 위로 올리고 "안 봄"으로 바꿔요.</li>
+    </ul>
+
+    <h3>Threads 글</h3>
+    <ul>
+      <li>threads.net, threads.com 주소를 모두 알아보고, 공유할 때 붙는 <code>?xmt=…</code> 꼬리는 떼서 같은 글은 하나로 합쳐요.</li>
+      <li>카드에 <b>Threads · @아이디</b>가 표시되고, <b>글 보기</b>를 누르면 Threads 공식 임베드로 본문·사진·반응 수가 카드 안에 펼쳐져요. 펼치면 읽음으로 처리돼요.</li>
+      <li>검색칸에 <code>threads</code>나 <code>쓰레드</code>를 치면 Threads 글만 모아 볼 수 있어요.</li>
+      <li>Threads가 다른 페이지에서 글 내용을 읽어 가지 못하게 막아 두어서, <b>분류는 붙여 넣은 글이나 메모로만</b> 해요. PC에서는 글 내용을 링크와 함께 복사해 붙여 넣으면 전문이 함께 저장되고 분류도 정확해져요.</li>
+      <li>임베드는 인터넷이 연결돼 있어야 보이고, 비공개 계정이나 지워진 글은 보이지 않아요.</li>
+    </ul>
+
+    <h3>정리해서 보기</h3>
+    <ul>
+      <li>주제 탭(AI 업무자동화 · 외국어 · 여행 · 반도체 뉴스 · 기타)과 날짜별 목록, 검색으로 찾아요. 탭의 주황 숫자는 안 본 개수예요.</li>
+      <li>링크를 누르면 새 탭으로 열리면서 읽음 처리돼요. 주제가 틀렸으면 카드의 주제 표시를 눌러 바로 옮길 수 있어요.</li>
+    </ul>
+
+    <h3>알림</h3>
+    <ul>
+      <li><b>알림 설정</b>에서 요일과 시각을 정해요. 그 시각에 이 페이지가 열려 있으면 PC 알림이 뜨고, 닫혀 있었다면 다음에 열 때 위쪽 안내로 보여 드려요.</li>
+    </ul>
+
+    <h3>꼭 알아 둘 점</h3>
+    <ul>
+      <li>스크랩은 <b>이 PC의 이 브라우저 안에만</b> 저장돼요. 폰과 이어지지 않고, 브라우저 기록을 지우면 함께 사라져요. 가끔 <b>백업 → 내보내기</b>로 파일을 받아 두세요.</li>
+      <li>Chrome이나 Edge로 여는 것을 권해요.</li>
+      <li>분류 단어를 바꾸려면 이 파일을 메모장으로 열어 <code>TOPICS</code> 목록을 고치면 돼요.</li>
+    </ul>
+
+    <button value="close" class="ghost">닫기</button>
+  </form>
+</dialog>
+
+<dialog id="viewer" class="viewer"><img id="viewerImg" alt="캡처 크게 보기"></dialog>
+<div id="toast" class="toast" role="status"></div>
+
+<script>
+'use strict';
+
+// ------------------------------------------------------------ 주제와 분류 단어
+// 단어를 더하거나 빼고 싶으면 이 목록을 고치면 됩니다.
+const TOPICS = [
+  { id: 'ai', name: 'AI 업무자동화', keywords: ['AI', '인공지능', '자동화', '업무자동화', 'GPT', 'ChatGPT', '챗GPT', 'Claude', '클로드', 'Gemini', '제미나이', 'Copilot', '코파일럿', 'LLM', '에이전트', 'agent', '프롬프트', 'prompt', 'RPA', 'n8n', 'Zapier', 'make.com', '노코드', '로우코드', '파이썬', 'python', '매크로', '생성형', '머신러닝', '딥러닝', 'OpenAI', 'Anthropic', 'MCP', '워크플로'] },
+  { id: 'lang', name: '외국어', keywords: ['외국어', '영어', '일본어', '중국어', '스페인어', '회화', '단어', '어휘', '문법', '표현', '발음', 'English', 'grammar', 'vocabulary', 'idiom', '토익', 'TOEIC', '토플', 'OPIc', '오픽', 'JLPT', 'HSK', '듀오링고', '쉐도잉', '원어민', '번역'] },
+  { id: 'travel', name: '여행', keywords: ['여행', '항공권', '항공', '비행기', '호텔', '숙소', '리조트', '에어비앤비', 'Airbnb', '맛집', '관광', '투어', '여권', '비자', '환전', '면세', '공항', '일정', '코스', 'travel', 'trip', 'booking', '아고다', '트립닷컴', '캠핑', '기차', 'KTX'] },
+  { id: 'semi', name: '반도체 뉴스', keywords: ['반도체', '삼성전자', 'SK하이닉스', '하이닉스', 'TSMC', '엔비디아', 'NVIDIA', 'HBM', '파운드리', '메모리', 'D램', 'DRAM', '낸드', 'NAND', '웨이퍼', 'ASML', '인텔', 'Intel', '마이크론', 'Micron', '팹', '공정', '나노', '칩', 'GPU', '패키징', 'EUV', 'AMD', '퀄컴', 'semiconductor'] },
+];
+const ALL_TOPICS = TOPICS.map(({ id, name }) => ({ id, name })).concat([{ id: 'etc', name: '기타' }]);
+const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
+
+const MATCHERS = TOPICS.map((t) => ({
+  id: t.id,
+  res: t.keywords.map((kw) => {
+    const k = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return /^[A-Za-z0-9 .\-]+$/.test(kw) ? new RegExp(`(?<![A-Za-z0-9])${k}(?![A-Za-z0-9])`, 'gi') : new RegExp(k, 'gi');
+  }),
+}));
+
+function classify(text) {
+  if (!text) return 'etc';
+  let best = 'etc', bestScore = 0;
+  for (const m of MATCHERS) {
+    let score = 0;
+    for (const re of m.res) score += Math.min((text.match(re) || []).length, 3);
+    if (score > bestScore) { best = m.id; bestScore = score; }
+  }
+  return best;
+}
+
+// ------------------------------------------------------------ 저장소 (IndexedDB)
+let db = null;
+let items = [];
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('scrapbox', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('items', { keyPath: 'id' });
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function store(mode, work) {
+  return new Promise((resolve, reject) => {
+    const t = db.transaction('items', mode);
+    const req = work(t.objectStore('items'));
+    t.oncomplete = () => resolve(req && req.result);
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error || new Error('저장에 실패했어요'));
+  });
+}
+const dbPut = (it) => store('readwrite', (s) => s.put(it));
+const dbDel = (id) => store('readwrite', (s) => s.delete(id));
+const dbAll = () => store('readonly', (s) => s.getAll());
+
+// 설정은 localStorage (없어도 동작)
+const SETTINGS_KEY = 'scrapbox.settings';
+let settings = { notify: { enabled: false, time: '21:00', days: [0, 1, 2, 3, 4, 5, 6] }, lastNotified: '' };
+try { Object.assign(settings, JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}')); } catch {}
+function saveSettingsLocal() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch {} }
+
+// ------------------------------------------------------------ 도우미
+const $ = (s) => document.querySelector(s);
+const state = { topic: 'all', q: '', unread: false, pending: null };
+const imgUrls = new Map();
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+}
+const pad = (n) => String(n).padStart(2, '0');
+const localISO = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const topicName = (id) => (ALL_TOPICS.find((t) => t.id === id) || { name: '기타' }).name;
+const topicOptions = (sel) => ALL_TOPICS.map((t) => `<option value="${t.id}"${t.id === sel ? ' selected' : ''}>${esc(t.name)}</option>`).join('');
+function safeDecode(u) { try { return decodeURI(u); } catch { return u; } }
+
+// Threads 링크: threads.net / threads.com 둘 다, 뒤에 붙는 ?xmt= 같은 꼬리는 떼고 한 가지 주소로 맞춤
+const THREADS_RE = /^https?:\/\/(?:www\.)?threads\.(?:net|com)\/@([A-Za-z0-9._]+)(?:\/post\/([A-Za-z0-9_-]+))?/i;
+function parseThreads(u) {
+  const m = (u || '').match(THREADS_RE);
+  if (!m) return null;
+  const handle = m[1], code = m[2] || '';
+  const url = `https://www.threads.com/@${handle}` + (code ? `/post/${code}` : '');
+  return { handle, code, url };
+}
+const darkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const embedSrc = (it) => `${it.url}/embed/` + (darkMode ? '?theme=dark' : '');
+const openEmbeds = new Set();
+const openTexts = new Set();
+// 붙여 넣은 글 전체. 예전에 저장한 글(앞 300자만 있던 것)도 그대로 보여 줌
+const fullText = (it) => it.body || (it.kind === 'text' && it.body === undefined ? it.title || '' : '');
+const embedHeights = new Map();
+
+// 임베드 창이 자기 높이를 알려 오면 그만큼 늘림
+window.addEventListener('message', (e) => {
+  if (!/^https:\/\/(www\.)?threads\.(net|com)$/.test(e.origin)) return;
+  const h = parseInt(e.data, 10);
+  if (!h || h < 50) return;
+  for (const f of document.querySelectorAll('.embed iframe')) {
+    if (f.contentWindow === e.source) {
+      f.style.height = h + 'px';
+      embedHeights.set(f.closest('.card').dataset.id, h);
+    }
+  }
+});
+function domainOf(u) { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } }
+function imageUrl(it) {
+  if (!imgUrls.has(it.id)) imgUrls.set(it.id, URL.createObjectURL(it.image));
+  return imgUrls.get(it.id);
+}
+function dayLabel(iso) {
+  const d = new Date(iso.slice(0, 10) + 'T00:00:00');
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - d) / 86400000);
+  if (diff === 0) return '오늘';
+  if (diff === 1) return '어제';
+  const y = d.getFullYear() !== today.getFullYear() ? `${d.getFullYear()}년 ` : '';
+  return `${y}${d.getMonth() + 1}월 ${d.getDate()}일 (${DAYS[(d.getDay() + 6) % 7]})`;
+}
+function unreadSummary() {
+  const counts = {};
+  for (const it of items) if (!it.read) counts[it.topic] = (counts[it.topic] || 0) + 1;
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const detail = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([t, n]) => `${topicName(t)} ${n}`).join(' · ');
+  return { total, counts, detail };
+}
+
+// ------------------------------------------------------------ 그리기
+function render() {
+  const { total, counts, detail } = unreadSummary();
+
+  $('#banner').hidden = total === 0;
+  $('#bannerText').innerHTML = `안 본 스크랩이 <b>${total}개</b> 있어요 — ${esc(detail)}`;
+  $('#bannerShow').hidden = state.unread;
+  document.title = total ? `(${total}) 스크랩함` : '스크랩함';
+
+  const tabs = [{ id: 'all', name: '전체', n: total }].concat(ALL_TOPICS.map((t) => ({ ...t, n: counts[t.id] || 0 })));
+  $('#tabs').innerHTML = tabs.map((t) =>
+    `<button type="button" class="tab${t.id === state.topic ? ' on' : ''}" data-topic="${t.id}">${esc(t.name)}${t.n ? `<span class="n">${t.n}</span>` : ''}</button>`
+  ).join('');
+
+  const terms = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = items
+    .filter((it) => state.topic === 'all' || it.topic === state.topic)
+    .filter((it) => !state.unread || !it.read)
+    .filter((it) => {
+      if (!terms.length) return true;
+      const hay = [it.title, it.note, it.body, it.url, it.url && safeDecode(it.url), it.source === 'threads' ? 'threads 쓰레드 스레드' : ''].join(' ').toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    })
+    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
+
+  if (!shown.length) {
+    const msg = !items.length ? '아직 저장한 게 없어요. 위 칸에 링크를 붙여 넣거나 캡처를 Ctrl+V 해 보세요. 처음이면 오른쪽 위 [도움말]을 눌러 보세요.'
+      : terms.length ? '검색 결과가 없어요' : state.unread ? '안 본 스크랩이 없어요' : '이 주제에는 아직 없어요';
+    $('#list').innerHTML = `<p class="empty">${msg}</p>`;
+    return;
+  }
+
+  let html = '', lastDay = '';
+  for (const it of shown) {
+    const day = it.createdAt.slice(0, 10);
+    if (day !== lastDay) { html += `<h2 class="day">${dayLabel(it.createdAt)}</h2>`; lastDay = day; }
+    html += card(it);
+  }
+  $('#list').innerHTML = html;
+}
+
+function card(it) {
+  let thumb, title, where;
+  if (it.kind === 'image') {
+    const src = imageUrl(it);
+    thumb = `<button type="button" class="thumb open-image"><img src="${src}" alt=""></button>`;
+    title = `<button type="button" class="title open-image">${esc(it.title || it.note || '화면 캡처')}</button>`;
+    where = '캡처';
+  } else if (it.kind === 'link' && it.source === 'threads') {
+    thumb = `<a class="thumb th open-link" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer" title="Threads에서 열기">@</a>`;
+    title = `<a class="title open-link" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title)}</a>`;
+    where = `Threads · @${esc(it.author)}`;
+  } else if (it.kind === 'link') {
+    const dom = domainOf(it.url);
+    thumb = `<a class="thumb open-link" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc((dom[0] || '#').toUpperCase())}</a>`;
+    title = `<a class="title open-link" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer">${esc(it.title || safeDecode(it.url))}</a>`;
+    where = esc(dom);
+  } else {
+    thumb = `<span class="thumb">✎</span>`;
+    title = `<span class="title" style="cursor:default">${esc(it.body !== undefined ? it.title : firstLine(it.title))}</span>`;
+    where = '글';
+  }
+  const memo = it.note && it.note !== it.title ? `<div class="memo">${esc(it.note)}</div>` : '';
+
+  // 붙여 넣은 글: 미리보기 3줄, [전체 보기]로 펼치기, [복사]
+  const full = fullText(it);
+  let shownText = full;
+  if (!it.note && it.body) {
+    // 첫 줄이 통째로 제목이 됐으면 본문에서는 그 줄을 빼고 보여 줌 (80자가 넘어 잘린 첫 줄은 그대로 둠)
+    const lines = full.split('\n');
+    const i = lines.findIndex((x) => x.trim());
+    if (i >= 0 && lines[i].trim() === it.title) shownText = lines.slice(i + 1).join('\n').trim();
+  }
+  const textOpen = openTexts.has(it.id);
+  const isLong = shownText.length > 150 || shownText.split('\n').length > 3;
+  const textBox = shownText ? `<div class="text${textOpen ? ' open' : ''}">${esc(shownText)}</div>` : '';
+  const textBtns = (shownText && isLong ? `<button type="button" class="text-btn">${textOpen ? '접기' : '전체 보기'}</button>` : '')
+    + (full ? '<button type="button" class="copy-btn">복사</button>' : '');
+  const canEmbed = it.source === 'threads' && it.code;
+  const isOpen = canEmbed && openEmbeds.has(it.id);
+  const embedBtn = canEmbed ? `<button type="button" class="embed-btn">${isOpen ? '글 접기' : '글 보기'}</button>` : '';
+  const embed = isOpen
+    ? `<div class="embed"><iframe src="${esc(embedSrc(it))}" style="height:${embedHeights.get(it.id) || 520}px" loading="lazy" scrolling="no" allowtransparency="true" title="Threads 글"></iframe>
+       <p>글이 안 보이면 인터넷 연결을 확인하거나, 비공개 계정이거나 지워진 글일 수 있어요.</p></div>`
+    : '';
+  return `<article class="card ${it.read ? 'read' : 'unread'}" data-id="${it.id}">
+    ${thumb}
+    <div class="body">
+      ${title}${memo}${textBox}
+      <div class="meta">
+        <select class="topic" aria-label="주제 바꾸기">${topicOptions(it.topic)}</select>
+        <span>${where} · ${it.createdAt.slice(11, 16)}</span>
+        ${embedBtn}${textBtns}
+        <button type="button" class="toggle-read">${it.read ? '안 읽음으로' : '읽음 표시'}</button>
+        <button type="button" class="del">삭제</button>
+      </div>
+    </div>
+    ${embed}
+  </article>`;
+}
+
+// ------------------------------------------------------------ 저장하기
+const URL_RE = /https?:\/\/[^\s<>"']+/i;
+
+// 글의 첫 줄을 제목으로 (80자까지)
+function firstLine(s) {
+  const line = (s || '').split('\n').map((x) => x.trim()).find(Boolean) || '';
+  return line.length > 80 ? line.slice(0, 80) + '…' : line;
+}
+
+async function addItem({ text, note, topic, image }) {
+  const now = localISO();
+  let it;
+  if (image) {
+    it = { id: newId(), kind: 'image', image, title: note.slice(0, 80), note, url: '' };
+    it.topic = topic || classify(note);
+  } else {
+    const m = text.match(URL_RE);
+    if (m) {
+      let url = m[0].replace(/[).,\]>」』]+$/, '');
+      const th = parseThreads(url);
+      if (th) url = th.url;
+      const dup = items.find((x) => x.url === url);
+      // 링크를 뺀 나머지 글은 길이와 상관없이 모두 보관
+      const leftover = (text.slice(0, m.index) + text.slice(m.index + m[0].length)).replace(/[ \t]+\n/g, '\n').trim();
+      if (dup) {
+        Object.assign(dup, { read: false, createdAt: now });
+        if (note) dup.note = note;
+        if (leftover) dup.body = leftover;
+        await dbPut(dup);
+        return { it: dup, msg: '이미 있던 링크라 맨 위로 올렸어요' };
+      }
+      const title = firstLine(note) || firstLine(leftover);
+      it = { id: newId(), kind: 'link', url, title, note, body: leftover !== title ? leftover : '' };
+      if (th) {
+        Object.assign(it, { source: 'threads', author: th.handle, code: th.code });
+        if (!it.title) it.title = th.code ? `@${th.handle}의 Threads 글` : `@${th.handle}의 Threads 프로필`;
+      }
+      it.topic = topic || classify([leftover, note, safeDecode(url)].join(' '));
+    } else if (text) {
+      it = { id: newId(), kind: 'text', url: '', title: firstLine(note) || firstLine(text), note, body: text };
+      it.topic = topic || classify(text + ' ' + note);
+    } else {
+      throw new Error('링크를 붙여 넣거나 캡처를 넣어 주세요');
+    }
+  }
+  Object.assign(it, { topicManual: !!topic, read: false, createdAt: now });
+  await dbPut(it);
+  items.push(it);
+  return { it, msg: it.kind === 'image' ? '캡처를 저장했어요' : it.kind === 'link' ? '링크를 저장했어요' : '메모를 저장했어요' };
+}
+
+function setPending(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  state.pending = file;
+  const img = $('#pendingImg');
+  if (img.src) URL.revokeObjectURL(img.src);
+  img.src = URL.createObjectURL(file);
+  $('#pending').hidden = false;
+  $('#addNote').focus();
+}
+function clearPending() {
+  state.pending = null;
+  $('#pending').hidden = true;
+  $('#fileInput').value = '';
+}
+
+$('#addForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!db) return toast('저장 공간을 쓸 수 없어요. Chrome이나 Edge로 열어 주세요');
+  try {
+    const { it, msg } = await addItem({
+      text: $('#addUrl').value.trim(),
+      note: $('#addNote').value.trim(),
+      topic: $('#addTopic').value,
+      image: state.pending,
+    });
+    $('#addUrl').value = '';
+    $('#addNote').value = '';
+    $('#addTopic').value = '';
+    updateThreadsHint();
+    growInput();
+    clearPending();
+    render();
+    toast(`${msg} · ${topicName(it.topic)}`);
+    $('#addUrl').focus();
+  } catch (err) {
+    toast(err.message);
+  }
+});
+
+function updateThreadsHint() {
+  const m = $('#addUrl').value.match(URL_RE);
+  $('#threadsHint').hidden = !(m && parseThreads(m[0]));
+}
+// 여러 줄 글을 붙이면 칸이 저절로 늘어남 (화면의 40%까지)
+function growInput() {
+  const el = $('#addUrl');
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 2 + 'px';
+}
+$('#addUrl').addEventListener('input', () => { updateThreadsHint(); growInput(); });
+// Enter는 줄바꿈, Ctrl+Enter(맥은 Cmd+Enter)는 저장
+for (const el of [$('#addUrl'), $('#addNote')]) {
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      $('#addForm').requestSubmit();
+    }
+  });
+}
+$('#helpBtn').addEventListener('click', () => $('#helpDlg').showModal());
+
+$('#fileInput').addEventListener('change', (e) => setPending(e.target.files[0]));
+$('#cancelImage').addEventListener('click', clearPending);
+
+document.addEventListener('paste', (e) => {
+  const file = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith('image/'))?.getAsFile();
+  if (file) { e.preventDefault(); setPending(file); }
+});
+document.addEventListener('dragover', (e) => { e.preventDefault(); $('#addForm').classList.add('drag'); });
+document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) $('#addForm').classList.remove('drag'); });
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+  $('#addForm').classList.remove('drag');
+  const file = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'));
+  if (file) return setPending(file);
+  const text = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
+  if (text) {
+    $('#addUrl').value = e.dataTransfer.getData('text/uri-list') ? text.split('\n')[0].trim() : text;
+    updateThreadsHint();
+    growInput();
+  }
+});
+
+// ------------------------------------------------------------ 목록 조작
+async function copyText(s) {
+  try {
+    await navigator.clipboard.writeText(s);
+    return true;
+  } catch {
+    // 파일로 열었을 때 클립보드 API가 막히면 예전 방식으로
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch {}
+    ta.remove();
+    return ok;
+  }
+}
+
+async function update(it, patch) {
+  Object.assign(it, patch);
+  await dbPut(it);
+  render();
+}
+
+$('#list').addEventListener('click', async (e) => {
+  const el = e.target.closest('.card');
+  if (!el) return;
+  const it = items.find((x) => x.id === el.dataset.id);
+  if (!it) return;
+  if (e.target.closest('.open-link')) {
+    if (!it.read) update(it, { read: true });
+    return;
+  }
+  if (e.target.closest('.open-image')) {
+    $('#viewerImg').src = imageUrl(it);
+    $('#viewer').showModal();
+    if (!it.read) update(it, { read: true });
+    return;
+  }
+  if (e.target.closest('.embed-btn')) {
+    if (openEmbeds.has(it.id)) openEmbeds.delete(it.id);
+    else openEmbeds.add(it.id);
+    return it.read || !openEmbeds.has(it.id) ? render() : update(it, { read: true });
+  }
+  if (e.target.closest('.text-btn')) {
+    if (openTexts.has(it.id)) openTexts.delete(it.id);
+    else openTexts.add(it.id);
+    return it.read || !openTexts.has(it.id) ? render() : update(it, { read: true });
+  }
+  if (e.target.closest('.copy-btn')) {
+    const ok = await copyText(fullText(it));
+    return toast(ok ? '글을 복사했어요' : '복사하지 못했어요. 펼친 뒤 직접 선택해 주세요');
+  }
+  if (e.target.closest('.toggle-read')) return update(it, { read: !it.read });
+  if (e.target.closest('.del')) {
+    if (!confirm('이 스크랩을 지울까요? 되돌릴 수 없어요.')) return;
+    await dbDel(it.id);
+    items = items.filter((x) => x !== it);
+    if (imgUrls.has(it.id)) { URL.revokeObjectURL(imgUrls.get(it.id)); imgUrls.delete(it.id); }
+    render();
+    toast('지웠어요');
+  }
+});
+
+$('#list').addEventListener('change', (e) => {
+  if (!e.target.classList.contains('topic')) return;
+  const it = items.find((x) => x.id === e.target.closest('.card').dataset.id);
+  update(it, { topic: e.target.value, topicManual: true });
+  toast(`'${topicName(e.target.value)}'(으)로 옮겼어요`);
+});
+
+$('#viewer').addEventListener('click', () => $('#viewer').close());
+$('#tabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.tab');
+  if (b) { state.topic = b.dataset.topic; render(); }
+});
+$('#unreadOnly').addEventListener('change', (e) => { state.unread = e.target.checked; render(); });
+$('#bannerShow').addEventListener('click', () => { state.unread = true; $('#unreadOnly').checked = true; render(); });
+let searchTimer;
+$('#search').addEventListener('input', (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 150);
+});
+
+// ------------------------------------------------------------ 알림
+const canNotify = () => 'Notification' in window;
+
+function permLabel() {
+  if (!canNotify()) return '이 브라우저는 PC 알림을 지원하지 않아요. 위쪽 안내로만 알려 드려요.';
+  return { granted: 'PC 알림이 허용돼 있어요.', denied: 'PC 알림이 막혀 있어요. 주소창 왼쪽 아이콘에서 알림을 허용해 주세요. 위쪽 안내는 그대로 나와요.', default: 'PC 알림을 받으려면 [PC 알림 허용]을 눌러 주세요.' }[Notification.permission];
+}
+
+function openNotify() {
+  const n = settings.notify;
+  $('#notifyOn').checked = n.enabled;
+  $('#notifyTime').value = n.time;
+  $('#notifyDays').innerHTML = DAYS.map((d, i) => `<label><input type="checkbox" value="${i}"${n.days.includes(i) ? ' checked' : ''}>${d}</label>`).join('');
+  $('#permText').textContent = permLabel();
+  $('#permBtn').hidden = !canNotify() || Notification.permission !== 'default';
+  $('#notifyDlg').showModal();
+}
+
+function remind(force) {
+  const { total, detail } = unreadSummary();
+  if (!total && !force) return;
+  const title = total ? `안 본 스크랩이 ${total}개 있어요` : '스크랩함 알림 테스트';
+  const body = total ? detail : '알림이 잘 나와요';
+  toast(title);
+  if (canNotify() && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(title, { body, tag: 'scrapbox' });
+      n.onclick = () => { window.focus(); state.unread = true; $('#unreadOnly').checked = true; render(); n.close(); };
+    } catch {}
+  }
+}
+
+function checkSchedule() {
+  const n = settings.notify;
+  const now = new Date();
+  const today = localISO(now).slice(0, 10);
+  const hhmm = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  if (n.enabled && n.days.includes((now.getDay() + 6) % 7) && hhmm >= n.time && settings.lastNotified !== today) {
+    settings.lastNotified = today;
+    saveSettingsLocal();
+    remind(false);
+  }
+}
+
+$('#notifyBtn').addEventListener('click', openNotify);
+$('#permBtn').addEventListener('click', async () => {
+  try { await Notification.requestPermission(); } catch {}
+  $('#permText').textContent = permLabel();
+  $('#permBtn').hidden = Notification.permission !== 'default';
+});
+$('#testBtn').addEventListener('click', () => remind(true));
+$('#saveNotify').addEventListener('click', () => {
+  const days = [...$('#notifyDays').querySelectorAll('input:checked')].map((x) => Number(x.value));
+  settings.notify = { enabled: $('#notifyOn').checked, time: $('#notifyTime').value || '21:00', days };
+  // 이미 지난 시각으로 정했다면 오늘은 건너뛰고 다음 차례부터
+  const now = new Date();
+  settings.lastNotified = `${pad(now.getHours())}:${pad(now.getMinutes())}` >= settings.notify.time ? localISO(now).slice(0, 10) : '';
+  saveSettingsLocal();
+  $('#notifyDlg').close();
+  toast(settings.notify.enabled ? `${days.map((d) => DAYS[d]).join('·')} ${settings.notify.time}에 알려 드릴게요` : '알림을 껐어요');
+});
+
+// ------------------------------------------------------------ 백업
+function blobToDataURL(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+function dataURLToBlob(url) {
+  const [head, b64] = url.split(',');
+  const type = (head.match(/data:([^;]+)/) || [])[1] || 'image/png';
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
+function openBackup() {
+  const imgs = items.filter((x) => x.kind === 'image').length;
+  $('#backupInfo').textContent = `지금 저장된 것: 링크·메모 ${items.length - imgs}개, 캡처 ${imgs}개`;
+  $('#backupDlg').showModal();
+}
+$('#backupBtn').addEventListener('click', openBackup);
+
+$('#exportBtn').addEventListener('click', async () => {
+  try {
+    const out = [];
+    for (const it of items) {
+      const copy = { ...it };
+      if (it.image) copy.image = await blobToDataURL(it.image);
+      out.push(copy);
+    }
+    const data = JSON.stringify({ app: 'scrapbox', version: 1, exportedAt: localISO(), settings: settings.notify, items: out });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    a.download = `스크랩함-백업-${localISO().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast(`${out.length}개를 내보냈어요`);
+  } catch (err) {
+    toast('내보내지 못했어요: ' + err.message);
+  }
+});
+
+$('#importInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (data.app !== 'scrapbox' || !Array.isArray(data.items)) throw new Error('스크랩함 백업 파일이 아니에요');
+    const have = new Set(items.map((x) => x.id));
+    let added = 0;
+    for (const raw of data.items) {
+      if (!raw.id || have.has(raw.id)) continue;
+      const it = { ...raw };
+      if (typeof it.image === 'string') it.image = dataURLToBlob(it.image);
+      await dbPut(it);
+      items.push(it);
+      added++;
+    }
+    render();
+    openBackup();
+    toast(added ? `${added}개를 불러왔어요` : '새로 불러올 게 없어요 (이미 다 있어요)');
+  } catch (err) {
+    toast('불러오지 못했어요: ' + err.message);
+  }
+});
+
+// ------------------------------------------------------------ 시작
+$('#addTopic').innerHTML = '<option value="">주제 자동 분류</option>' + topicOptions('');
+
+(async function start() {
+  try {
+    db = await openDB();
+    items = await dbAll();
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  } catch (err) {
+    $('#storageError').hidden = false;
+  }
+  render();
+  checkSchedule();
+  setInterval(checkSchedule, 30 * 1000);
+  $('#addUrl').focus();
+})();
+</script>
+</body>
+</html>
